@@ -29,6 +29,7 @@ import codecs
 import os
 import re
 import xml.etree.ElementTree as ET
+import non_ling_gamestart as gamestart
 
 
 from csvtoglozz import append_unit, init_mk_id, mk_id
@@ -566,68 +567,74 @@ def add_discourse_annotations(tree, text, e, subdoc):
             event = text[start:end]
             global_id = '_'.join([subdoc, unit.get('id')])
 
+            """
+            <---comment out all events here that are taken care of
+            by gamestart.main()--->
+            """
             # Join / sit down events
-
-            if JoinRegEx.search(event) is not None:
-                # <X> joined the game.
-                mo = JoinRegEx.search(event)
-                X = mo.group(1)
-                events.Join[X] = global_id
-                continue
-
-            elif SitDownRegEx.search(event) is not None:
-                # <X> sat down at seat <N>.
-                mo = SitDownRegEx.search(event)
-                X = mo.group(1)
-                if events.Join.has_key(X):
-                    errors.extend(append_relation(
-                        root, 'Sequence', events.Join[X], global_id))
-                    del events.Join[X]
-                continue
-
-            # Game started / Board layout set events
-
-            elif event == "Game started.":
-                events.Start = global_id
-                continue
-
-            elif event == "Board layout set.":
-                if events.Start != '':
-                    errors.extend(append_relation(
-                        root, 'Sequence', events.Start, global_id))
-                    events.Start = ''
-                continue
-
-            # Building events
-
-            elif TurnToBuildRegEx.search(event) is not None:
-                # It's <X>'s turn to build a <C>.
-                mo = TurnToBuildRegEx.search(event)
-                X = mo.group(1)
-                C = mo.group(2)
-                events.Building[(X, C)] = global_id
-                if events.Building.has_key(('', '')):
-                    errors.extend(append_relation(
-                        root, 'Result', events.Building[('', '')], global_id))
-                    del events.Building[('', '')]
-                continue
-
-            elif BuiltRegEx.search(event) is not None:
-                # <X> built a <C>.
-                mo = BuiltRegEx.search(event)
-                X = mo.group(1)
-                C = mo.group(2)
-                if events.Building.has_key((X, C)):
-                    errors.extend(append_relation(
-                        root, 'Result', events.Building[(X, C)], global_id))
-                    del events.Building[(X, C)]
-                    events.Building[('', '')] = global_id
-                elif events.Building.has_key(('', '')):
-                    del events.Building[('', '')]
-                continue
-
+            #
+            # if JoinRegEx.search(event) is not None:
+            #     # <X> joined the game.
+            #     mo = JoinRegEx.search(event)
+            #     X = mo.group(1)
+            #     events.Join[X] = global_id
+            #     continue
+            #
+            # elif SitDownRegEx.search(event) is not None:
+            #     # <X> sat down at seat <N>.
+            #     mo = SitDownRegEx.search(event)
+            #     X = mo.group(1)
+            #     if events.Join.has_key(X):
+            #         errors.extend(append_relation(
+            #             root, 'Sequence', events.Join[X], global_id))
+            #         del events.Join[X]
+            #     continue
+            #
+            # # Game started / Board layout set events
+            #
+            # elif event == "Game started.":
+            #     events.Start = global_id
+            #     continue
+            #
+            # elif event == "Board layout set.":
+            #     if events.Start != '':
+            #         errors.extend(append_relation(
+            #             root, 'Sequence', events.Start, global_id))
+            #         events.Start = ''
+            #     continue
+            #
+            # # Building events
+            #
+            # elif TurnToBuildRegEx.search(event) is not None:
+            #     # It's <X>'s turn to build a <C>.
+            #     mo = TurnToBuildRegEx.search(event)
+            #     X = mo.group(1)
+            #     C = mo.group(2)
+            #     events.Building[(X, C)] = global_id
+            #     if events.Building.has_key(('', '')):
+            #         errors.extend(append_relation(
+            #             root, 'Result', events.Building[('', '')], global_id))
+            #         del events.Building[('', '')]
+            #     continue
+            #
+            # elif BuiltRegEx.search(event) is not None:
+            #     # <X> built a <C>.
+            #     mo = BuiltRegEx.search(event)
+            #     X = mo.group(1)
+            #     C = mo.group(2)
+            #     if events.Building.has_key((X, C)):
+            #         errors.extend(append_relation(
+            #             root, 'Result', events.Building[(X, C)], global_id))
+            #         del events.Building[(X, C)]
+            #         events.Building[('', '')] = global_id
+            #     elif events.Building.has_key(('', '')):
+            #         del events.Building[('', '')]
+            #     continue
+            """
+            </----end comment out--->
+            """
             # Resource distribution events
-            elif TurnToRollRegEx.search(event) is not None:
+            if TurnToRollRegEx.search(event) is not None:
                 # It's <X>'s turn to roll the dice.
                 events.Roll = global_id
                 continue
@@ -852,6 +859,8 @@ def main():
 
     init_mk_id()
 
+    print("oh hello there")
+
     parser = argparse.ArgumentParser()
 
     parser.add_argument('folder', help='folder where the files to annotate are')
@@ -872,6 +881,7 @@ def main():
     events = Events()
 
     for i in range(1, N+1):
+    #for i in range(1, 2):
         e = events
 
         subdoc = name + '_%02d' % i
@@ -879,6 +889,8 @@ def main():
         textname = os.path.join(folder, 'unannotated', subdoc + '.ac')
         unitsname = os.path.join(unitsfolder, subdoc + '.aa')
         discoursename = os.path.join(discoursefolder, subdoc + '.aa')
+        #discoursename_test = os.path.join(discoursefolder, subdoc + '-kate_test.aa')
+
         textfile = codecs.open(textname, 'r', 'utf-8')
         unitsfile = codecs.open(unitsname, 'r', 'ascii')
         discoursefile = codecs.open(discoursename, 'r', 'ascii')
@@ -890,6 +902,12 @@ def main():
         discourse_tree = ET.fromstring(stringtree_discourse)
 
         units_root = add_units_annotations(units_tree, text)
+
+        if i == 1:
+            relations_list = gamestart.main(discourse_tree, text, subdoc)
+            for r in relations_list:
+                append_relation(discourse_tree, r[0], r[1], r[2])
+
         discourse_root, events, errors = add_discourse_annotations(
             discourse_tree, text, e, subdoc)
 
@@ -899,6 +917,8 @@ def main():
             out.write(prettify(units_root))
         with codecs.open(discoursename, 'w', 'ascii') as out:
             out.write(prettify(discourse_root))
+        # with codecs.open(discoursename_test, 'w', 'ascii') as out:
+        #     out.write(prettify(discourse_root))
 
         textfile.close()
         unitsfile.close()
