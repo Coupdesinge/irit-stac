@@ -56,14 +56,19 @@ def main(root, text, subdoc):
                 if sat[0] == joined[0]:
                     relations_list.append(('Sequence', joined[1], sat[1]))
                     joined = ("", "")
+                else:
+                    joined = ("", "")
             elif event == "Game state 0.":
+                print(event)
                 if sat[1]:
                     relations_list.append(('Result', sat[1], global_id))
             elif event == "Game started.":
+                print(event)
                 game_start = global_id
                 before_game_start = 0
         else:
             if TurnToRollRegEx.search(event) is not None:
+                print(event)
                 relations_list.append(('Result', game_start, global_id))
                 break
             else:
