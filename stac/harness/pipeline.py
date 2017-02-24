@@ -244,18 +244,26 @@ def _get_decoding_jobs(mpack, lconf, econf):
     """
     makedirs(lconf.tmp("parsed"))
     output_path = attelo_result_path(lconf, econf)
-    cache = lconf.model_paths(econf.learner,
-                              None)
+    cache = lconf.model_paths(econf.learner, None, econf.parser)
     parser = econf.parser.payload
     parser.fit([], [], cache=cache)  # we assume everything is cached
     return ath_parse.jobs(mpack, parser, output_path)
 
 
 def decode(lconf, evaluations):
-    "Decode the input using all the model/learner combos we know"
+    """Decode the input using all the model/learner combos we know.
+
+    Parameters
+    ----------
+    lconf : ?
+        TODO
+
+    evaluations : iterable of ?
+        TODO
+    """
 
     fpath = minicorpus_path(lconf) + '.relations.sparse'
-    vocab_path = lconf.mpack_paths(test_data=False)[3]
+    vocab_path = lconf.mpack_paths(test_data=False)['vocab']
     mpack = load_multipack(fpath + '.edu_input',
                            fpath + '.pairings',
                            fpath,
