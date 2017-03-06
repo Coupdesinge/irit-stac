@@ -9,7 +9,7 @@ to pilot02_03), it is not added to the files but written to a separate
 file `Implicit_Relations.txt`.
 
 This script only uses functions from the standard python library and
-reimplements the generation of local and global ids as it is implemented
+re-implements the generation of local and global ids as it is implemented
 in educe.
 
 Usage :
@@ -70,6 +70,9 @@ def add_units_annotations(tree, text):
     root :
         modified XML tree with additional units annotations on
         non-linguistic events
+
+
+    NOTE: 1.1-surfaceact-1 and 1.1-addressee-3 from the annotation manual are checked for each unit
     """
     root = tree
 
@@ -223,12 +226,14 @@ def add_units_annotations(tree, text):
 
             # WIP 2016-07-11
             if OFFER_PROG.search(event) is not None:
+                """1.2 - resources - offer, 1.1-type-1, 1.1-addressee-1"""
                 # <X> made an offer to trade <N1> <R1> for <N2> <R2>.
                 m = OFFER_PROG.search(event)
                 parse_offer(m, start, end, unit, root)
                 Trader = m.group('X')
                 continue
             elif BANK_OFFER_PROG.search(event) is not None:
+                """1.2 - resources - offer, 1.1-type-2, 1.1-addressee-1"""
                 # <X> made an offer to trade <N1> <R1> for <N2> <R2> with
                 # the bank or a port.
                 m = BANK_OFFER_PROG.search(event)
@@ -236,12 +241,14 @@ def add_units_annotations(tree, text):
                 Trader = m.group('X')
                 continue
             elif TRADE_PROG.search(event) is not None:
+                """1.2 - resources - trade, 1.1-type-2, 1.1-addresse-2"""
                 m = TRADE_PROG.search(event)
                 parse_trade(m, start, end, unit, root)
                 continue
             # end WIP 2016-07-11
 
             elif RejectRegEx.search(event) != None:
+                """1.1.-type-3"""
                 # <Y> rejected trade offer.
                 mo = RejectRegEx.search(event)
                 Y = mo.group(1)
@@ -260,6 +267,7 @@ def add_units_annotations(tree, text):
                 continue
 
             elif event == "You can't make that trade.":
+                """1.1-type-4"""
                 unit.find('characterisation/type').text = 'Other'
                 feats = unit.find('characterisation/featureSet')
                 f_elm1 = ET.SubElement(feats, 'feature',
@@ -274,6 +282,7 @@ def add_units_annotations(tree, text):
                 continue
 
             elif GetRegEx.search(event) != None:
+                """1.2-resources-gets"""
                 # <Y> gets <N> <R>.
                 mo = GetRegEx.search(event)
                 Y = mo.group(1)
@@ -299,6 +308,7 @@ def add_units_annotations(tree, text):
                 continue
 
             elif Get2RegEx.search(event) != None:
+                """1.2-resources-gets"""
                 # <Y> gets <N1> <R1>, <N2> <R2>.
                 mo = Get2RegEx.search(event)
                 Y = mo.group(1)
@@ -334,6 +344,7 @@ def add_units_annotations(tree, text):
 
 
             elif MonopolyRegEx.search(event) != None:
+                """1.2-resources-monopolized"""
                 # <X> monopolized <R>.
                 mo = MonopolyRegEx.search(event)
                 X = mo.group(1)
@@ -358,6 +369,7 @@ def add_units_annotations(tree, text):
                 continue
 
             else:
+                """1.1-addressee-3, 1.1-type-4"""
                 unit.find('characterisation/type').text = 'Other'
                 feats = unit.find('characterisation/featureSet')
                 f_elm1 = ET.SubElement(feats, 'feature',
@@ -403,11 +415,11 @@ def append_relation(root, utype, global_id1, global_id2, place):
 
     if subdoc1 == subdoc2:
 
-        # rel1 = "Implicit relation from subdoc %s to subdoc %s for %s :" % (
-        #     subdoc1, subdoc2, place)
-        #print(rel1)
-        #rel2 = "%s ------ %s -----> %s" % (global_id1, utype, global_id2)
-        #print(rel2)
+        rel1 = "Implicit relation from subdoc %s to subdoc %s for %s :" % (
+            subdoc1, subdoc2, place)
+        print(rel1)
+        rel2 = "%s ------ %s -----> %s" % (global_id1, utype, global_id2)
+        print(rel2)
 
 
         local_id1 = '_'.join([id1[-2], id1[-1]])
@@ -441,9 +453,9 @@ def append_relation(root, utype, global_id1, global_id2, place):
     else:
         err1 = "Implicit relation from subdoc %s to subdoc %s for %s :" % (
             subdoc1, subdoc2, place)
-        #print(err1)
+        print(err1)
         err2 = "%s ------ %s -----> %s" % (global_id1, utype, global_id2)
-        #print(err2)
+        print(err2)
         return [err1, err2]
 
 
@@ -507,7 +519,14 @@ def append_schema(root, utype, edus):
 
 
 def add_discourse_annotations(tree, text, e, subdoc):
-    """Add discourse annotations for non-linguistical event.
+    """
+    For each non-linguistic unit in the discourse tree object, check the text using a set
+    of RegEx patterns. Event object attributes are used to determine whether criteria are
+    met for the addition of a particular relation between two events. If they are, the two
+    events are given to the append_relation function to add relations and the append_schema
+    function to create CDUs. If the events involved in a relation span two subdocs, the
+    functions return an 'error' list, which will be added to the final implicit relation
+    .txt file (see main() function)
 
     Parameters
     ----------
@@ -578,7 +597,19 @@ def add_discourse_annotations(tree, text, e, subdoc):
             event = text[start:end]
             global_id = '_'.join([subdoc, unit.get('id')])
 
-            # Game Start/Board Layout Set
+            """
+            The "place" variable reflects the section of the situated annotation
+            manual describing the relation.
+
+            The "consecutive" variable is initialized outside the loop and is used
+            to determine whether or not <X's turn to roll> is followed by
+            <X played a P card> without any other intervening non-linguistic events.
+
+            A Sequence relation is only added between two consecutive non-linguistic
+            events. Here "consecutive" means "with no intervening non-linguistic events".
+            If two non-linguistic events are either right next to each other, or separated
+            by linguistic events only, they are considered consecutive.
+            """
 
             if JoinRegEx.search(event) is not None:
                 mo = JoinRegEx.search(event)
@@ -590,7 +621,13 @@ def add_discourse_annotations(tree, text, e, subdoc):
                 events.Sat = (mo.group(1), global_id)
 
                 if events.Sat[0] == events.Join[0]:
-                    place = "NUMBER 1"
+                    """
+                    <X joined the game> --Sequence--> <X sat down at seat N>
+                    !!!ASSUMPTION: no other non-linguistic events can take place
+                    between X joining the game and X sitting down, so there is no
+                    need to keep track using a 'consecutive' variable
+                    """
+                    place = "2.2.1-1, join & sit"
                     errors.extend(append_relation(
                         root, 'Sequence', events.Join[1], events.Sat[1], place))
                     events.Join = ("", "")
@@ -599,7 +636,8 @@ def add_discourse_annotations(tree, text, e, subdoc):
                 continue
 
             if event == "Game state 0.":
-                place = "NUMBER 2"
+                """<X sat down at seat N> --Sequence--> <Game State 0.>"""
+                place = "2.2.1-2 game state 0"
                 if events.Sat[1]:
                     errors.extend(append_relation(
                         root, 'Result', events.Sat[1], global_id, place))
@@ -611,17 +649,20 @@ def add_discourse_annotations(tree, text, e, subdoc):
 
             if TurnToRollRegEx.search(event) is not None:
                 if events.Start != "NONE":
-                    place = "NUMBER 3"
-                    errors.extend(append_relation(
-                        root, 'Result', events.Start, global_id, place))
+                    """(see 2.2.1-3) Adds Result between all game setup moves, terminating at
+                    first player turn to roll: <X's turn to roll the dice.>"""
+                    # place = "NUMBER 3"
+                    # errors.extend(append_relation(
+                    #     root, 'Result', events.Start, global_id, place))
                     events.Start = "NONE"
-                # It's <X>'s turn to roll the dice.
                 events.Roll = global_id
                 consecutive = 1
                 continue
 
             if events.Start != "NONE":
-                place = "NUMBER 3"
+                """Adds Result between all game setup moves, terminating at
+                first player turn to roll: <X's turn to roll the dice.>"""
+                place = "2.2.1-3 game setup"
                 errors.extend(append_relation(
                     root, 'Result', events.Start, global_id, place))
                 events.Start = global_id
@@ -631,19 +672,19 @@ def add_discourse_annotations(tree, text, e, subdoc):
             #
 
             if PlayedCardRegEx.search(event) is not None:
-                place = 'NUMBER 5'
+                """<X's turn to roll the dice.> --Sequence--> <X played a P card.>"""
+                place = '2.2.2-2 turn to roll & played card'
                 if consecutive == 1:
-                    #add a Sequence relation
                     errors.extend(append_relation(
                         root, 'Sequence', events.Roll, global_id, place))
 
             if DiceRegEx.search(event) is not None:
                 consecutive = 0
-                # <X> rolled a <M1> and a <M2>.
                 mo = DiceRegEx.search(event)
                 M1 = int(mo.group(2))
                 M2 = int(mo.group(3))
-                if M1 + M2 != 7: # Resource distribution event
+                if M1 + M2 != 7:
+                    # Resource distribution event
                     # Since we don't know when finishes a resource
                     # distribution, the trick is to compute a resource
                     # distribution when the next one starts.
@@ -652,14 +693,20 @@ def add_discourse_annotations(tree, text, e, subdoc):
                     if len(events.Dice) > 0:
                         if len(events.Dice) == 2:
                             # Resource distribution: 1 player
-                            place = 'NUMBER 6'
+                            """<X rolled an M1 and M2> --Result--> <Y gets N R's>"""
+                            place = '2.2.3-1 roll and distribution'
                             errors.extend(append_relation(
                                 root, 'Result', events.Dice[0], events.Dice[1], place))
-                        else: # Resource Distribution : 2 or more players
+                        else:
+                            # Resource Distribution : 2 or more players
+                            """
+                            <X rolled an M1 and M2> --CDU Result-->
+                            [<Y gets N1 R1s> -- Continuation --> <Z gets N2 R2s>]
+                            """
                             cdu_dice = append_schema(
                                 root, 'Complex_discourse_unit', events.Dice[1:])
                             global_cdu_dice = '_'.join([subdoc, cdu_dice])
-                            place = 'NUMBER 7'
+                            place = '2.2.3-2 roll and distribution'
                             errors.extend(append_relation(
                                 root, 'Result', events.Dice[0], global_cdu_dice, place))
                             for i in range(1, len(events.Dice) - 1):
@@ -667,12 +714,14 @@ def add_discourse_annotations(tree, text, e, subdoc):
                                     root, 'Continuation', events.Dice[i], events.Dice[i+1], place))
                         events.Dice[:] = []
                     events.Dice.append(global_id)
-                else: # M1 + M2 == 7 : Robber event
+                else:
+                    # M1 + M2 == 7 : Robber event
                     if events.Robber != []:
                         raise Exception("add_discourse_annotations : la liste RobberEvent n'a pas été vidée!")
                     events.Robber.append(global_id)
                 if events.Roll != '':
-                    place = 'NUMBER 4'
+                    """<X's turn to roll.> --Result--> <X rolled an M1 and M2>"""
+                    place = '2.2.2-1 what was rolled'
                     errors.extend(append_relation(
                         root, 'Result', events.Roll, global_id, place))
                     events.Roll = ''
@@ -691,9 +740,9 @@ def add_discourse_annotations(tree, text, e, subdoc):
                 continue
 
             if NoGetRegEx.search(event) is not None:
+                """<X rolled an M1 and M2> --Result--> No player gets anything."""
                 consecutive = 0
-                # No player gets anything.
-                place = 'NUMBER 6'
+                place = '2.2.3-1 no player gets anything'
                 errors.extend(append_relation(
                     root, 'Result', events.Dice[0], global_id, place))
                 events.Dice[:] = []
@@ -730,7 +779,7 @@ def add_discourse_annotations(tree, text, e, subdoc):
                 consecutive = 0
                 # <X> moved the robber.
                 events.Robber.append(global_id)
-                place = 'NUMBER 11'
+                place = '2.2.6-1 robber event'
                 cdu_robber = append_schema(
                     root, 'Complex_discourse_unit', events.Robber[1:])
                 global_cdu_robber = '_'.join([subdoc, cdu_robber])
@@ -752,7 +801,7 @@ def add_discourse_annotations(tree, text, e, subdoc):
                 consecutive = 0
                 # <X> stole a resource from <Z>.
                 events.Robber.append(global_id)
-                place = 'NUMBER 11'
+                place = '2.2.6-1 stolen resource'
                 cdu_robber = append_schema(
                     root, 'Complex_discourse_unit', events.Robber[1:])
                 global_cdu_robber = '_'.join([subdoc, cdu_robber])
@@ -781,8 +830,10 @@ def add_discourse_annotations(tree, text, e, subdoc):
                   and TRADE_PROG.search(event) is None
                   and BANK_OFFER_PROG.search(event) is None):
                 consecutive = 0
-                # from <Y>
-                place = 'NUMBER 8'
+                """
+                [CDU] — [X made an offer to trade M R1 for N R2—[elaboration]— … —[continuation]— from Y]
+                """
+                place = 'NUMBER 8 2.2.4-2 trades offers'
                 events.Trade.append(global_id)
                 errors.extend(append_relation(
                     root, 'Elaboration', events.Trade[0], events.Trade[1], place))
@@ -818,18 +869,18 @@ def add_discourse_annotations(tree, text, e, subdoc):
                 continue
 
             if TRADE_PROG.search(event) is not None:
+                """<X made an offer to trade M R1 for N R2>--QAP--><X traded M R1 for N R2>"""
                 consecutive = 0
-                # <X> traded <M> <R1> for <N> <R2> from <Y>.
-                place = 'NUMBER 9'
+                place = '2.2.4-3 trade accept'
                 errors.extend(append_relation(
                     root, 'Question-answer_pair', events.Trade[0], global_id, place))
                 events.Trade[:] = []
                 continue
 
             if RejectRegEx.search(event) is not None:
+                """<X made an offer to trade M R1 for N R2>--QAP--><Y rejected trade offer>"""
                 consecutive = 0
-                # <Y> rejected trade offer.
-                place = 'NUMBER 10'
+                place = '2.2.4-4 trade reject'
                 errors.extend(append_relation(
                     root, 'Question-answer_pair', events.Trade[0], global_id, place))
                 events.Trade[:] = []
@@ -846,9 +897,9 @@ def add_discourse_annotations(tree, text, e, subdoc):
                 continue
 
             if MonopolyRegEx.search(event) is not None:
+                """<X played a monopoly card>--Result--><X monopolized R>"""
                 consecutive = 0
-                # <X> monopolized <R>.
-                place = 'NUMBER 13'
+                place = '2.2.6-3 monopoly'
                 errors.extend(append_relation(
                     root, 'Result', events.Monopoly, global_id, place))
                 events.Monopoly = ""
@@ -868,7 +919,13 @@ def add_discourse_annotations(tree, text, e, subdoc):
                 if len(events.Road) == 1:
                     events.Road.append(global_id)
                 elif len(events.Road) == 2:
-                    place = 'NUMBER 14'
+                    """
+                    <X played a Road Building Card --CDU Result-->
+                    [<X built a road>--Sequence--><X built a road>]
+                    !!!ASSUMPTION: the two following road building events will
+                    always be consecutive.
+                    """
+                    place = '2.2.6-5 road building event'
                     events.Road.append(global_id)
                     cdu_road = append_schema(root, 'Complex_discourse_unit', events.Road[1:])
                     global_cdu_road = '_'.join([subdoc, cdu_road])
@@ -879,20 +936,20 @@ def add_discourse_annotations(tree, text, e, subdoc):
                     events.Road = []
                 continue
 
-
-
     """
     For resources distributions, we complete the XML tree and empty the
     list at the next dice roll.
     So for the last turn we may have forgotten to annotate some events.
     """
     if len(events.Dice) > 0:
-        if len(events.Dice) == 2: # Resource distribution : 1 player
-            place = 'NUMBER 6'
+        if len(events.Dice) == 2:
+            # Resource distribution : 1 player
+            place = '2.2.3-1 roll adn distribution'
             errors.extend(append_relation(
                 root, 'Result', events.Dice[0], events.Dice[1], place))
-        else: # Resource Distribution : 2 or more players
-            place = 'NUMBER 7'
+        else:
+            # Resource Distribution : 2 or more players
+            place = '2.2.3-2 roll and distribution'
             cdu_dice = append_schema(
                 root, 'Complex_discourse_unit', events.Dice[1:])
             global_cdu_dice = '_'.join([subdoc, cdu_dice])
@@ -911,6 +968,20 @@ def add_discourse_annotations(tree, text, e, subdoc):
 # ---------------------------------------------------------------------
 
 def main():
+    """
+    -For each subdoc in a game/document which has added non-linguistic events/nonNonPlayerSegments,
+    open three files: text .ac file, units .aa file and discourse .aa file.
+    -Convert each of the .aa (XML)files into tree objects.
+    -Call add_units_annotations function on units tree object, call add_discourse_annotations
+    function on discourse tree object.
+    -Initialize an Event object which will be used to keep a record over all subdocs of the
+    sequence of events necessary for each relation
+    -Functions return amended tree objects plus a .txt file of implicit relations
+    which could not be added because they would span two different subdocs.
+    **For now, these must be corrected by hand**
+    -Save the tree objects as files, overwriting old files.
+    :return: units .aa files and discourse .aa files with added automatic relations
+    """
 
     #ligne de commande : python nonling_annotations.py ../../data/pilot_nonling/test/pilot14/ SILVER
 
@@ -971,6 +1042,7 @@ def main():
         discoursefile.close()
 
     if Implicit_Relations != []:
+
         error_report = '\n'.join(Implicit_Relations)
         filename = os.path.join(folder, 'Implicit_Relations.txt')
         with codecs.open(filename, 'w', 'ascii') as out:
