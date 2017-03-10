@@ -216,6 +216,9 @@ def add_units_annotations(tree, text):
                             left, right, author=_AUTHOR)
                 left = right + 2
 
+    last_trade_offer_unitid = ''
+    ellipse = 0
+    trade_offer_addressees = []
     for unit in root:
         if unit.findtext('characterisation/type') == 'NonplayerSegment':
             start = int(unit.find('positioning/start/singlePosition').get(
@@ -231,8 +234,10 @@ def add_units_annotations(tree, text):
                 m = OFFER_PROG.search(event)
                 parse_offer(m, start, end, unit, root)
                 Trader = m.group('X')
+                last_trade_offer_unitid = unit.get("id")
+                print(last_trade_offer_unitid)
                 continue
-            elif BANK_OFFER_PROG.search(event) is not None:
+            if BANK_OFFER_PROG.search(event) is not None:
                 """1.2 - resources - offer, 1.1-type-2, 1.1-addressee-1"""
                 # <X> made an offer to trade <N1> <R1> for <N2> <R2> with
                 # the bank or a port.
@@ -240,14 +245,14 @@ def add_units_annotations(tree, text):
                 parse_offer(m, start, end, unit, root)
                 Trader = m.group('X')
                 continue
-            elif TRADE_PROG.search(event) is not None:
+            if TRADE_PROG.search(event) is not None:
                 """1.2 - resources - trade, 1.1-type-2, 1.1-addresse-2"""
                 m = TRADE_PROG.search(event)
                 parse_trade(m, start, end, unit, root)
                 continue
             # end WIP 2016-07-11
 
-            elif RejectRegEx.search(event) != None:
+            if RejectRegEx.search(event) != None:
                 """1.1.-type-3"""
                 # <Y> rejected trade offer.
                 mo = RejectRegEx.search(event)
@@ -266,7 +271,7 @@ def add_units_annotations(tree, text):
                     f_elm2.text = 'All'
                 continue
 
-            elif event == "You can't make that trade.":
+            if event == "You can't make that trade.":
                 """1.1-type-4"""
                 unit.find('characterisation/type').text = 'Other'
                 feats = unit.find('characterisation/featureSet')
@@ -281,7 +286,7 @@ def add_units_annotations(tree, text):
                     f_elm2.text = 'All'
                 continue
 
-            elif GetRegEx.search(event) != None:
+            if GetRegEx.search(event) != None:
                 """1.2-resources-gets"""
                 # <Y> gets <N> <R>.
                 mo = GetRegEx.search(event)
@@ -307,7 +312,7 @@ def add_units_annotations(tree, text):
                             left, right, author=_AUTHOR)
                 continue
 
-            elif Get2RegEx.search(event) != None:
+            if Get2RegEx.search(event) != None:
                 """1.2-resources-gets"""
                 # <Y> gets <N1> <R1>, <N2> <R2>.
                 mo = Get2RegEx.search(event)
@@ -342,8 +347,7 @@ def add_units_annotations(tree, text):
                             left2, right2, author=_AUTHOR)
                 continue
 
-
-            elif MonopolyRegEx.search(event) != None:
+            if MonopolyRegEx.search(event) != None:
                 """1.2-resources-monopolized"""
                 # <X> monopolized <R>.
                 mo = MonopolyRegEx.search(event)
@@ -378,8 +382,22 @@ def add_units_annotations(tree, text):
                 f_elm2 = ET.SubElement(feats, 'feature',
                                        {'name': 'Addressee'})
                 f_elm2.text = 'All'
-                continue
+                if event == '...' and last_trade_offer_unitid != '':
+                    ellipse = 1
+                elif event.split(' ')[0] == 'from':
+                    if ellipse:
+                        trade_offer_addressees.append((last_trade_offer_unitid, event.split(' ')[1]))
+                        ellipse = 0
+                        last_trade_offer_unitid == ''
 
+    """Go through list of units '1.2 - resources - offer' and add addressee"""
+    for unit in root:
+        if len(trade_offer_addressees) > 0:
+            for i, t in enumerate(trade_offer_addressees):
+                if unit.get("id") == t[0]:
+                    unit.find('characterisation/featureSet/feature[2]').text = t[1]
+                    trade_offer_addressees.pop(i)
+                    break
     return root
 
 
@@ -417,9 +435,7 @@ def append_relation(root, utype, global_id1, global_id2, place):
 
         rel1 = "Implicit relation from subdoc %s to subdoc %s for %s :" % (
             subdoc1, subdoc2, place)
-        print(rel1)
         rel2 = "%s ------ %s -----> %s" % (global_id1, utype, global_id2)
-        print(rel2)
 
 
         local_id1 = '_'.join([id1[-2], id1[-1]])
@@ -453,9 +469,7 @@ def append_relation(root, utype, global_id1, global_id2, place):
     else:
         err1 = "Implicit relation from subdoc %s to subdoc %s for %s :" % (
             subdoc1, subdoc2, place)
-        print(err1)
         err2 = "%s ------ %s -----> %s" % (global_id1, utype, global_id2)
-        print(err2)
         return [err1, err2]
 
 
@@ -1010,6 +1024,7 @@ def main():
         e = events
 
         subdoc = name + '_%02d' % i
+        print(subdoc)
 
         textname = os.path.join(folder, 'unannotated', subdoc + '.ac')
         unitsname = os.path.join(unitsfolder, subdoc + '.aa')
