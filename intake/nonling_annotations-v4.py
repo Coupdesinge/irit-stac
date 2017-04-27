@@ -45,7 +45,8 @@ _AUTHOR = 'stacnl'
 OFFER_RE = r'(?P<X>.+) made an offer to trade (?P<V>(\d+) (clay|ore|sheep|wheat|wood)(, (\d+) (clay|ore|sheep|wheat|wood))*)? for (?P<W>(\d+) (clay|ore|sheep|wheat|wood)(, (\d+) (clay|ore|sheep|wheat|wood))*)?\.'
 OFFER_PROG = re.compile(OFFER_RE)
 # [...] [from Y]
-FROM_PROG = re.compile(r'from (.+)')
+#FROM_PROG = re.compile(r'from (.+)')
+FROM_PROG = re.compile(r'^(\.{3})(.+)from(.+)')
 
 # trade offer with the bank or a port
 BANK_OFFER_RE = r'(?P<X>.+) made an offer to trade (?P<V>(\d+) (clay|ore|sheep|wheat|wood)(, (\d+) (clay|ore|sheep|wheat|wood))*)? for (?P<W>(\d+) (clay|ore|sheep|wheat|wood)(, (\d+) (clay|ore|sheep|wheat|wood))*)? from (?P<Y>the bank or a port)\.'
@@ -474,7 +475,6 @@ def append_relation(root, utype, global_id1, global_id2, place):
         err2 = "%s ------ %s -----> %s" % (global_id1, utype, global_id2)
         return [err1, err2]
 
-
 class Events:
     def __init__(self):
         self.Join = ("", "")
@@ -490,6 +490,10 @@ class Events:
         self.Monopoly = ""
         self.Road = []
         self.Time = ""
+        self.Points = []
+        self.End = []
+        self.YOP = ""
+
 
 
 def append_schema(root, utype, edus):
@@ -687,6 +691,11 @@ def add_discourse_annotations(tree, text, e, subdoc, relations_dict, cdu_dict):
     TimeRemainingRegEx = re.compile(r'(.+)Less than (.+) minutes remaining.\.')
     AddTimeRegEx = re.compile(r'Type \*ADDTIME\* to extend this game (.+)\.')
 
+    WonGameRegEx = re.compile(r'(.+) has won the game with (.+)\.')
+    PointDistRegEx = re.compile(r'(.+) has (.+) point(.+)\.')
+    VictoryCardsRegEx = re.compile(r'(.+) has a (.+)VP(.+)')
+    GameLengthRegEx = re.compile(r'This game was (.+) rounds, and took (.+)\.')
+
     consecutive = 0
 
     """Order units within the tree"""
@@ -709,6 +718,7 @@ def add_discourse_annotations(tree, text, e, subdoc, relations_dict, cdu_dict):
     for o in ordered_root:
         global_id = o[1]
         event = o[2]
+        print(event)
 
         """
         The "place" variable reflects the section of the situated annotation
@@ -837,9 +847,10 @@ def add_discourse_annotations(tree, text, e, subdoc, relations_dict, cdu_dict):
                 else:
                     cdu_resource = append_schema(root, 'Complex_discourse_unit', events.Resource)
                     global_cdu_resource = '_'.join([subdoc, cdu_resource])
+                    print(events.Resource)
                     for i in range(0, len(events.Resource) - 1):
-                        if check_relation('Continuation', [events.Dice[i], events.Dice[i + 1]], relations_dict):
-                            auto_relations.append((events.Dice[i], events.Dice[i + 1], place))
+                        if check_relation('Continuation', [events.Resource[i], events.Resource[i + 1]], relations_dict):
+                            auto_relations.append((events.Resource[i], events.Resource[i + 1], place))
                         else:
                             errors.extend(append_relation(
                                 root, 'Continuation', events.Resource[i], events.Resource[i + 1], place))
@@ -1153,7 +1164,7 @@ def add_discourse_annotations(tree, text, e, subdoc, relations_dict, cdu_dict):
             # ...
             events.Trade.append(global_id)
             continue
-        if FROM_PROG.search(event) is not None and len(events.Trade) > 1:
+        if FROM_PROG.search(event) is not None and len(events.Trade) > 0:
               # and TRADE_PROG.search(event) is None
               # and BANK_OFFER_PROG.search(event) is None):
             consecutive = 0
@@ -1168,12 +1179,12 @@ def add_discourse_annotations(tree, text, e, subdoc, relations_dict, cdu_dict):
             else:
                 errors.extend(append_relation(
                     root, 'Elaboration', events.Trade[0], events.Trade[1], place))
-            if check_relation('Continuation', [events.Trade[1], global_id], relations_dict):
-                auto_relations.append((events.Trade[1], global_id, place))
-                pass
-            else:
-                errors.extend(append_relation(
-                    root, 'Continuation', events.Trade[1], global_id, place))
+            # if check_relation('Continuation', [events.Trade[1], global_id], relations_dict):
+            #     auto_relations.append((events.Trade[1], global_id, place))
+            #     pass
+            # else:
+            #     errors.extend(append_relation(
+            #         root, 'Continuation', events.Trade[1], global_id, place))
             if check_relation('Complex_discourse_unit', events.Trade, relations_dict):
                 events.Trade[0] = get_cdu_id(events.Trade, cdu_dict)
                 auto_relations.append((events.Trade, place))
@@ -1193,12 +1204,12 @@ def add_discourse_annotations(tree, text, e, subdoc, relations_dict, cdu_dict):
             consecutive = 0
             # You can't make that trade.
             place = 'CANNOT TRADE'
-            if check_relation('Question-answer_pair', [events.Trade[0], global_id], relations_dict):
+            if check_relation('Correction', [events.Trade[0], global_id], relations_dict):
                 auto_relations.append((events.Trade[0], global_id, place))
                 pass
             else:
                 errors.extend(append_relation(
-                    root, 'Question-answer_pair', events.Trade[0], global_id, place))
+                    root, 'Correction', events.Trade[0], global_id, place))
             # this message does not clear the pending trade offer,
             # it just means that the trade can't be made right now
             # for example, if the offering player is in a building phase,
@@ -1288,6 +1299,53 @@ def add_discourse_annotations(tree, text, e, subdoc, relations_dict, cdu_dict):
                     events.Time = ""
             continue
 
+        """end of game events"""
+
+        if WonGameRegEx.search(event) is not None:
+            # X has won the game with N points...
+            consecutive = 0
+            events.End.append(global_id)
+            continue
+
+        if PointDistRegEx.search(event) is not None:
+            # X has N points.
+            consecutive = 0
+            events.Points.append(global_id)
+            continue
+
+        if VictoryCardsRegEx.search(event) is not None:
+            # X has a Z with (+1VP)
+            consecutive = 0
+            events.End.append(global_id)
+            continue
+
+        if GameLengthRegEx.search(event) is not None:
+            # This game was X rounds, and took Z hours...
+            place = "End of game events"
+            consecutive = 0
+            """make CDU out of point distribution"""
+            if len(events.Points) > 1:
+                print(events.End)
+                cdu_points = append_schema(
+                    root, 'Complex_discourse_unit', events.Points)
+                global_cdu_points = '_'.join([subdoc, cdu_points])
+                for i in range(0, len(events.Points) - 1):
+                    errors.extend(append_relation(
+                        root, 'Continuation', events.Points[i], events.Points[i + 1], place))
+                # Relate events.End EDUs to the new CDU
+                errors.extend(append_relation(
+                    root, 'Elaboration', events.End[0], global_cdu_points, place))
+                for i in range(1, len(events.End)):
+                    # print(events.Points[i])
+                    errors.extend(append_relation(
+                        root, 'Elaboration', global_cdu_points, events.End[i], place))
+                # Relate first event of events.End to game length annoncement
+                errors.extend(append_relation(
+                    root, 'Background', events.End[0], global_id, place))
+                events.Points = []
+                events.End = []
+            continue
+
     """
     For adding relations to resources distributions/game states that have not yet
     been added because next players turn has not yet come up but the turn
@@ -1346,8 +1404,8 @@ def add_discourse_annotations(tree, text, e, subdoc, relations_dict, cdu_dict):
             cdu_resource = append_schema(root, 'Complex_discourse_unit', events.Resource)
             global_cdu_resource = '_'.join([subdoc, cdu_resource])
             for i in range(0, len(events.Resource) - 1):
-                if check_relation('Continuation', [events.Dice[i], events.Dice[i + 1]], relations_dict):
-                    auto_relations.append((events.Dice[i], events.Dice[i + 1], place))
+                if check_relation('Continuation', [events.Resource[i], events.Resource[i + 1]], relations_dict):
+                    auto_relations.append((events.Resource[i], events.Resource[i + 1], place))
                 else:
                     errors.extend(append_relation(
                         root, 'Continuation', events.Resource[i], events.Resource[i + 1], place))
