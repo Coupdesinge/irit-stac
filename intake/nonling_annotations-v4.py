@@ -356,7 +356,6 @@ def add_units_annotations(tree, text):
                 mo = MonopolyRegEx.search(event)
                 X = mo.group(1)
                 R = mo.group(2)
-
                 unit.find('characterisation/type').text = 'Other'
                 feats = unit.find('characterisation/featureSet')
                 f_elm1 = ET.SubElement(feats, 'feature',
@@ -670,6 +669,7 @@ def add_discourse_annotations(tree, text, e, subdoc, relations_dict, cdu_dict):
     #That's why we actually don't need to bother with complex regular expression since there are in fact just two cases to consider. :)
     NoGetRegEx = re.compile(r'No player gets anything\.')
     PlayedCardRegEx = re.compile(r'(.+) played a (.{,20}) card')
+    YoPCardRegEx = re.compile(r'(.+) played a Year of Plenty card')
 
     SoldierRegEx = re.compile(r'(.+) played a Soldier card\.')
     Discard0RegEx = re.compile(r'(.+) need to discard')
