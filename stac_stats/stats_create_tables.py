@@ -9,12 +9,17 @@ from glob import glob
 from itertools import chain
 import os
 import warnings
+import shutil
 
 import pandas as pd
+import pydot
+import pickle
 
 from educe.stac.annotation import (is_dialogue, is_edu, is_paragraph,
                                    is_preference, is_resource, is_turn)
 from educe.stac.corpus import Reader as StacReader
+
+import svg_data as sd
 
 
 # local path
@@ -550,41 +555,137 @@ def read_corpus_as_dataframes(version='situated', split='all',
     return turns, dlgs, segs, acts, schms, schm_mbrs, rels, res, pref
 
 
-#if __name__ == '__main__':
-    # situated games that are still incomplete, so should be excluded
-not_ready = ['s2-league3-game5', 's2-league4-game2']
-sel_games = ['pilot14', 'pilot02']
-# read the situated version
-turns_situ, dlgs_situ, segs_situ, acts_situ, schms_situ, schm_mbrs_situ, rels_situ, res_situ, pref_situ = read_corpus_as_dataframes(version='situated', split='all', sel_games=sel_games, exc_games=not_ready)
-print("situated tables built...")
-if False:
-    print(dlgs_situ[:5])
-    print(segs_situ[:5])
-    print(acts_situ[:5])
-    print(schms_situ[:5])
-    print(schm_mbrs_situ[:5])
-    print(rels_situ[:5])
-    print(res_situ[:5])
-    print(pref_situ[:5])
+def get_seg_orders(segments_table):
+    subset = segments_table[['doc', 'subdoc']]
+    subdocs = [tuple(x) for x in subset.values]
 
-# get the list of documents in the situated version, filter _spect to keep
-# them (only)
-games_situ = list(turns_situ['doc'].unique())
+    for subdoc in subdocs:
+        subset = segs_situ.loc[(segs_situ['doc'] == subdoc[0]) & (segs_situ['subdoc'] == subdoc[1])][['global_id', 'type', 'span_end']].sort_values('span_end')
+        segments = [tuple(x) for x in subset.values]
 
-# read the spect version
-turns_spect, dlgs_spect, segs_spect, acts_spect, schms_spect, schm_mbrs_spect, rels_spect, res_spect, pred_spect = read_corpus_as_dataframes(version='ling', split='all', sel_games=games_situ)
-print("spect tables built...")
-if False:
-    print(dlgs_spect[:5])
-    print(acts_spect[:5])
-    print(schms_spect[:5])
-    print(schm_mbrs_spect[:5])
-    print(rels_spect[:5])
-    print(res_spect[:5])
-    print(pref_spect[:5])
-print()
-print("Games available:")
-print()
-for s in sel_games:
-    print(s)
+    return None
 
+
+if __name__ == '__main__':
+
+    """
+    for all games:
+    -create tables and save as pickle files to be opened by jupyter notebook
+    -create intermediary tables and pickle them
+    -create objects used to create svg visualizations and pickle them
+
+    """
+
+    not_ready = ['s2-league3-game5', 's2-league4-game2'] # situated games that are still incomplete, so should be excluded
+
+    # sel_games = ['pilot14', 'pilot02', 's1-league3-game3', 's2-league4-game2', 's1-leagueM-game4', 's1-league1-game1',
+    #              's1-league1-game2', 's1-league1-game3', 's1-league1-game4', 's1-league1-game5', 's1-league2-game1', 's1-league2-game2',
+    #              's1-league2-game3', 's1-league2-game4', 's1-league3-game1', 's1-league3-game2', 's1-league3-game4', 's1-league3-game5',
+    #              's1-league3-game6', 's1-league3-game7', 's2-league1-game1', 's2-league1-game1', 's2-league3-game4', 's2-league3-game5',
+    #              's2-league4-game3', 's2-league5-game1', 's2-leagueM-game2', 's2-leagueM-game3', 's2-leagueM-game5', 'pilot01', 'pilot03',
+    #              'pilot14', 'pilot20']
+
+    sel_games = ['s2-league5-game1', 's1-league1-game2']
+
+    # read the situated version
+    turns_situ, dlgs_situ, segs_situ, acts_situ, schms_situ, schm_mbrs_situ, rels_situ, res_situ, pref_situ = read_corpus_as_dataframes(version='situated', split='all', sel_games=sel_games, exc_games=not_ready)
+    print("situated tables built...")
+    if False:
+        print(dlgs_situ[:5])
+        print(segs_situ[:5])
+        print(acts_situ[:5])
+        print(schms_situ[:5])
+        print(schm_mbrs_situ[:5])
+        print(rels_situ[:5])
+        print(res_situ[:5])
+        print(pref_situ[:5])
+
+    output = open('dlgs_situ.pkl', 'wb')
+    pickle.dump(dlgs_situ, output)
+    output.close()
+
+
+    output = open('segs_situ.pkl', 'wb')
+    pickle.dump(segs_situ, output)
+    output.close()
+
+    # get the list of documents in the situated version, filter _spect to keep
+    # them (only)
+    games_situ = list(turns_situ['doc'].unique())
+
+    # read the spect version
+    turns_spect, dlgs_spect, segs_spect, acts_spect, schms_spect, schm_mbrs_spect, rels_spect, res_spect, pref_spect = read_corpus_as_dataframes(version='ling', split='all', sel_games=games_situ)
+    print("spect tables built...")
+    if False:
+        print(dlgs_spect[:5])
+        print(acts_spect[:5])
+        print(schms_spect[:5])
+        print(schm_mbrs_spect[:5])
+        print(rels_spect[:5])
+        print(res_spect[:5])
+        print(pref_spect[:5])
+
+    output = open('dlgs_spect.pkl', 'wb')
+    pickle.dump(dlgs_spect, output)
+    output.close()
+
+    output = open('segs_spect.pkl', 'wb')
+    pickle.dump(segs_spect, output)
+    output.close()
+
+    # create any secondary tables which will be useful for data analysis
+    # segment order table
+    # seg_orders_spect = get_seg_orders(segs_spect)
+    # seg_orders_situ = get_seg_orders(segs_situ)
+
+    #print("secondary tables built...")
+
+    situ_dialogue_dict = sd.create_dialogue_dict(dlgs_situ)
+    spect_dialogue_dict = sd.create_dialogue_dict(dlgs_spect)
+
+    #using segs subsets and dialogue dicts from both spect and situ, amend subsets used by nodes dicts
+    #so that they include a 'superdoc' number
+
+    situ_segs = sd.get_node_segs(segs_situ, situ_dialogue_dict)
+    spect_segs = sd.get_node_segs(segs_spect, spect_dialogue_dict)
+
+    #taking situ and spect segs, add superdoc
+
+    spect_segs_super, situ_segs_super = sd.add_superdoc(spect_segs, situ_segs)
+
+    #create all dicts needed for svgs and create svg folders  !!!change this to include superdoc!!!!
+
+    situ_nodes_dict = sd.create_nodes_dict(situ_segs_super)
+    spect_nodes_dict = sd.create_nodes_dict(spect_segs_super)
+
+    situ_relations_dict = sd.create_relations_dict(rels_situ)
+    spect_relations_dict = sd.create_relations_dict(rels_spect)
+
+    situ_cdu_components_dict = sd.create_cdu_components_dict(schm_mbrs_situ)
+    spect_cdu_components_dict = sd.create_cdu_components_dict(schm_mbrs_spect)
+
+    situ_cdu_relations_dict = sd.create_cdu_relations_dict(rels_situ)
+    spect_cdu_relations_dict = sd.create_cdu_relations_dict(rels_spect)
+
+    print("tables created")
+
+    # current_dir = os.getcwd()
+    # shutil.rmtree(current_dir + '/stac_game_graphs/')
+    # print("current game graph directory deleted")
+
+    sd.create_svg_folders(situ_nodes_dict, situ_relations_dict, situ_cdu_relations_dict, situ_cdu_components_dict,
+                          'situated')
+
+    print("situated svgs created")
+
+    sd.create_svg_folders(spect_nodes_dict, spect_relations_dict, spect_cdu_relations_dict, spect_cdu_components_dict,
+                          'spect')
+
+    #create mashup folders
+
+
+    print("spect svgs created")
+
+    #create html for folder
+
+    sd.create_html()
