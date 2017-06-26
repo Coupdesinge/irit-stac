@@ -1,6 +1,9 @@
-import stats_create_tables as tables
+#import stats_create_tables as tables
 import pandas as pd
+import pickle
+import os
 #import numpy as np
+
 
 FULL_RELATION_LIST = ['Acknowledgement', 'Alternation', 'Anaphora', 'Background', 'Clarification_question',
                      'Comment', 'Conditional', 'Continuation', 'Contrast', 'Correction', 'Elaboration',
@@ -8,10 +11,57 @@ FULL_RELATION_LIST = ['Acknowledgement', 'Alternation', 'Anaphora', 'Background'
 
 ENDPOINTS_DICT = {'EDU': 'Segment', 'EEU': 'NonplayerSegment', 'CDU': 'Complex_discourse_unit'}
 
-"""
-to do:
-CREATE PICKLES OF ALL THE TABLES TO DECREASE LOAD TIME
-"""
+current_dir = os.getcwd()
+pickle_path = current_dir + '/stac_data_pickles/'
+
+pkl_file = open(pickle_path + 'turns_situ.pkl', 'rb')
+turns_situ = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'dlgs_situ.pkl', 'rb')
+dlgs_situ = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'segs_situ.pkl', 'rb')
+segs_situ = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'acts_situ.pkl', 'rb')
+acts_situ = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'schms_situ.pkl', 'rb')
+schms_situ = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'schm_mbrs_situ.pkl', 'rb')
+schm_mbrs_situ = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'rels_situ.pkl', 'rb')
+rels_situ = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'res_situ.pkl', 'rb')
+res_situ = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'pref_situ.pkl', 'rb')
+pref_situ = pickle.load(pkl_file)
+
+pkl_file = open(pickle_path + 'turns_spect.pkl', 'rb')
+turns_spect = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'dlgs_spect.pkl', 'rb')
+dlgs_spect = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'segs_spect.pkl', 'rb')
+segs_spect = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'acts_spect.pkl', 'rb')
+acts_spect = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'schms_spect.pkl', 'rb')
+schms_spect = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'schm_mbrs_spect.pkl', 'rb')
+schm_mbrs_spect = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'rels_spect.pkl', 'rb')
+rels_spect = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'res_spect.pkl', 'rb')
+res_spect = pickle.load(pkl_file)
+pkl_file = open(pickle_path + 'pref_spect.pkl', 'rb')
+pref_spect = pickle.load(pkl_file)
+
+pkl_file.close()
+
+print("data tables opened...")
+
+GAMES = sorted(list(set(segs_situ['doc'])))
+
+print("Games Available: ")
+
+for g in GAMES:
+    print(g)
 
 
 def edu_helper(game):
@@ -21,8 +71,8 @@ def edu_helper(game):
     :return: a single row of the final edu_count table: for a single game return the frequencies of
     segments by segment/version type
     """
-    sit_table = tables.segs_situ.loc[tables.segs_situ['doc'] == game].groupby('type').size()
-    spect_table = tables.segs_spect.loc[tables.segs_spect['doc'] == game].groupby('type').size()
+    sit_table = segs_situ.loc[segs_situ['doc'] == game].groupby('type').size()
+    spect_table = segs_spect.loc[segs_spect['doc'] == game].groupby('type').size()
     frame = pd.concat([spect_table, sit_table], axis=0)
     new_frame = frame.to_frame()
     new_frame.columns = [game]
@@ -42,7 +92,7 @@ def edu_count(game='all'):
     """
     if game == 'all':
         all_tables = []
-        for s in tables.sel_games:
+        for s in GAMES:
             all_tables.append(edu_helper(s))
         frame = pd.concat(all_tables, axis=0)
 
@@ -69,9 +119,9 @@ def relation_helper(game, version, relations):
     """
     tmp_table = None
     if version == 'situated':
-        tmp_table = tables.rels_situ.loc[(tables.rels_situ['doc'] == game) & (tables.rels_situ['type'].isin(relations))].groupby('type').size()
+        tmp_table = rels_situ.loc[(rels_situ['doc'] == game) & (rels_situ['type'].isin(relations))].groupby('type').size()
     elif version == 'spect':
-        tmp_table = tables.rels_spect.loc[(tables.rels_spect['doc'] == game) & (tables.rels_spect['type'].isin(relations))].groupby('type').size()
+        tmp_table = rels_spect.loc[(rels_spect['doc'] == game) & (rels_spect['type'].isin(relations))].groupby('type').size()
     tmp_table = tmp_table.to_frame()
     tmp_table.columns = [game + '_' + version]
     tmp_table = tmp_table.T
@@ -98,8 +148,8 @@ def relation_count(game='all', version='both', relations='all'):
         if relations == 'all':
             relations = FULL_RELATION_LIST
 
-        sit_tmp = tables.rels_situ.loc[tables.rels_situ['type'].isin(relations)].groupby('type').size()
-        spect_tmp = tables.rels_spect.loc[tables.rels_spect['type'].isin(relations)].groupby('type').size()
+        sit_tmp = rels_situ.loc[rels_situ['type'].isin(relations)].groupby('type').size()
+        spect_tmp = rels_spect.loc[rels_spect['type'].isin(relations)].groupby('type').size()
 
         frame = pd.concat([spect_tmp, sit_tmp], axis=1)
         frame.fillna(value=0, inplace=True)
@@ -111,7 +161,7 @@ def relation_count(game='all', version='both', relations='all'):
     else:
 
         if game == 'all':
-            games = tables.sel_games
+            games = GAMES
         else:
             games = game
         if relations == 'all':
@@ -149,18 +199,18 @@ def endpoint_helper(games, version, endpoints, relations):
     tmp_table = None
 
     if games == 'all':
-        games = tables.sel_games
+        games = GAMES
 
     if version == 'situated':
-        tmp_table = tables.rels_situ.loc[(tables.rels_situ['doc'].isin(games)) &
-                                     (tables.rels_situ['source_type'] == ENDPOINTS_DICT[endpoints[0]]) &
-                                         (tables.rels_situ['target_type'] == ENDPOINTS_DICT[endpoints[1]]) &
-                                         (tables.rels_situ['type'].isin(relations))].groupby('type').size()
+        tmp_table = rels_situ.loc[(rels_situ['doc'].isin(games)) &
+                                  (rels_situ['source_type'] == ENDPOINTS_DICT[endpoints[0]]) &
+                                (rels_situ['target_type'] == ENDPOINTS_DICT[endpoints[1]]) &
+                                (rels_situ['type'].isin(relations))].groupby('type').size()
     elif version == 'spect':
-        tmp_table = tables.rels_spect.loc[(tables.rels_spect['doc'].isin(games)) &
-                                          (tables.rels_spect['source_type'] == ENDPOINTS_DICT[endpoints[0]]) &
-                                          (tables.rels_spect['target_type'] == ENDPOINTS_DICT[endpoints[1]]) &
-                                          (tables.rels_spect['type'].isin(relations))].groupby('type').size()
+        tmp_table = rels_spect.loc[(rels_spect['doc'].isin(games)) &
+                                          (rels_spect['source_type'] == ENDPOINTS_DICT[endpoints[0]]) &
+                                          (rels_spect['target_type'] == ENDPOINTS_DICT[endpoints[1]]) &
+                                          (rels_spect['type'].isin(relations))].groupby('type').size()
     tmp_table = tmp_table.to_frame()
     tmp_table.columns = [version + '__' + endpoints[0] + '-' + endpoints[1]]
     tmp_table = tmp_table.T
